@@ -142,14 +142,7 @@ resource "aws_eip" "one" {
   depends_on                = [aws_internet_gateway.gw]
 }
 
-variable "name" {
-  description = "The name of the Lambda function and all other resources created by this module."
-  type        = string
-  default     = "web_server"
-}
-resource "aws_ecs_cluster" "sig_cluster" {
-  name = my_cluster
-}
+
 
 #UBUNTU server where I install & enable apache2
 resource "aws_instance" "web-server-instance" {
@@ -157,7 +150,7 @@ resource "aws_instance" "web-server-instance" {
   instance_type     = "t2.micro"
   availability_zone = "us-east-1a" #SAME AS THE SUBNET, amazon picks random zone if we dont hardcode it, so if we dont hardcore in both, they might not work together
   key_name          = "main-key"
-  cluster = sig_cluster.name
+  #cluster = sig_cluster.name
   #iam_instance_profile = "ec2_profile" #Launches the application with the ec2 role I created above.
 
   network_interface {
@@ -173,6 +166,6 @@ resource "aws_instance" "web-server-instance" {
     EOF 
   #tells terraform we're done writing commands to my ubuntuserver
   tags = {
-    Name = var.name
+    Name = "ubuntuserverapache2"
   }
 }
