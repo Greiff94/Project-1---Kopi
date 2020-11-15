@@ -23,156 +23,84 @@ provider "aws" {
   secret_key = var.s_key
 }
 
-#GATEWAY
-resource "aws_internet_gateway" "gw" {
-  vpc_id = aws_vpc.prod-vpc.id
+# ---------------------------------------------------------------------------------------------------------------------
+# DEPLOY INTO THE DEFAULT VPC AND SUBNETS
+# To keep this example simple, we are deploying into the Default VPC and its subnets. In real-world usage, you should
+# deploy into a custom VPC and private subnets.
+# ---------------------------------------------------------------------------------------------------------------------
+
+data "aws_vpc" "default" {
+  default = true
 }
 
-#ROUTE TABLE
-resource "aws_route_table" "prod-route-table" {
-  vpc_id = aws_vpc.prod-vpc.id
-
-  route {
-    cidr_block = "0.0.0.0/0" #DEFAULT ROUTE, SENDS ALL TRAFFIC WHEREEVER THIS ROUTE
-    gateway_id = aws_internet_gateway.gw.id
-  }
-
-  route {
-    ipv6_cidr_block = "::/0"
-    gateway_id      = aws_internet_gateway.gw.id
-  }
-
-  tags = {
-    Name = "prodroute"
-  }
+data "aws_subnet_ids" "all" {
+  vpc_id = data.aws_vpc.default.id
 }
 
-#VPC
-resource "aws_vpc" "prod-vpc" {
-  cidr_block = "10.0.0.0/16"
+# ---------------------------------------------------------------------------------------------------------------------
+# CREATE THE ECS CLUSTER
+# ---------------------------------------------------------------------------------------------------------------------
 
-  tags = {
-    Name = "production"
-  }
-}
-variable "subnet_prefix" {
-  description = " cidrblock for my subnet"
+resource "aws_ecs_cluster" "example" {
+  name = var.cluster_name
 }
 
-#SUBNET
-resource "aws_subnet" "subnet-1" {
-  vpc_id            = aws_vpc.prod-vpc.id
-  cidr_block        = var.subnet_prefix[0]
-  availability_zone = "us-east-1a"
-  tags = {
-    Name = "prod-subnet"
-  }
-}
-#Associate subnet with Route table
-resource "aws_route_table_association" "a" {
-  subnet_id      = aws_subnet.subnet-1.id
-  route_table_id = aws_route_table.prod-route-table.id
-}
+# ---------------------------------------------------------------------------------------------------------------------
+# CREATE THE ECS SERVICE AND ITS TASK DEFINITION
+# ---------------------------------------------------------------------------------------------------------------------
 
+resource "aws_ecs_service" "example" {
+  name            = var.service_name
+  cluster         = aws_ecs_cluster.example.arn
+  task_definition = aws_ecs_task_definition.example.arn
+  desired_count   = 0
+  launch_type     = "FARGATE"
 
-#CREATE A SECURITY GROUP, in this case: allow ports 22, 443 80
-resource "aws_security_group" "allow_web" {
-  name        = "allow_webtraffic"
-  description = "Allow web traffic"
-  vpc_id      = aws_vpc.prod-vpc.id
-
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] #Can change to only our computer, but Im using 0* to allow all
-  }
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    description = "SSH" #Allows me to SSH the server, I'm using windows so I use Putty to change my main-key pem to ppk, and ssh into it
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-  description = "Pinging" 
-  from_port   = 8
-  to_port     = -1
-  protocol    = "icmp"
-  cidr_blocks = ["0.0.0.0/0"]
-}
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1" # -1 means any protocol
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "allow_web"
+  network_configuration {
+    subnets = data.aws_subnet_ids.all.ids
   }
 }
 
-#Network interface -- Creating a network interface with an IP in the subnet that was created earlier
-resource "aws_network_interface" "web-server-ni" {
-  subnet_id       = aws_subnet.subnet-1.id
-  private_ips     = ["10.0.1.50"]
-  security_groups = [aws_security_group.allow_web.id]
+resource "aws_ecs_task_definition" "example" {
+  family                   = "terratest"
+  network_mode             = "awsvpc"
+  cpu                      = 256
+  memory                   = 512
+  requires_compatibilities = ["FARGATE"]
+  execution_role_arn       = aws_iam_role.execution.arn
+  container_definitions    = <<-JSON
+    [
+      {
+        "image": "terraterst-example",
+        "name": "terratest",
+        "networkMode": "awsvpc"
+      }
+    ]
+JSON
 
-  # attachment {
-  #  instance     = aws_instance.test.id
-  #   device_index = 1
-  # }
 }
 
-#Assign an elastic IP to the network interface , requires internet gateway to be deployed first hence depends on flag
-resource "aws_eip" "one" {
-  vpc                       = true
-  network_interface         = aws_network_interface.web-server-ni.id
-  associate_with_private_ip = "10.0.1.50"
-  depends_on                = [aws_internet_gateway.gw]
+# ---------------------------------------------------------------------------------------------------------------------
+# CREATE THE ECS TASK EXECUTION ROLE AND ATTACH APPROPRIATE AWS MANAGED POLICY
+# ---------------------------------------------------------------------------------------------------------------------
+
+resource "aws_iam_role" "execution" {
+  name               = "${var.cluster_name}-ecs-execution"
+  assume_role_policy = data.aws_iam_policy_document.assume-execution.json
 }
 
-variable "name" {
-  description = "The name of the Lambda function and all other resources created by this module."
-  type        = string
-  default     = "web_server"
-}
-resource "aws_ecs_cluster" "sig_cluster" {
-  name = my_cluster
+resource "aws_iam_role_policy_attachment" "execution" {
+  role       = aws_iam_role.execution.id
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-#UBUNTU server where I install & enable apache2
-resource "aws_instance" "web-server-instance" {
-  ami               = "ami-0dba2cb6798deb6d8"
-  instance_type     = "t2.micro"
-  availability_zone = "us-east-1a" #SAME AS THE SUBNET, amazon picks random zone if we dont hardcode it, so if we dont hardcore in both, they might not work together
-  key_name          = "main-key"
-  cluster = sig_cluster.name
-  #iam_instance_profile = "ec2_profile" #Launches the application with the ec2 role I created above.
-
-  network_interface {
-    device_index         = 0
-    network_interface_id = aws_network_interface.web-server-ni.id
-  }
-  user_data = <<-EOF
-    #!/bin/bash
-    sudo apt update -y
-    sudo apt install apache2 -y
-    sudo systemctl start apache2
-    sudo bash -c 'echo my first web server > /var/www/html/index.html'
-    EOF 
-  #tells terraform we're done writing commands to my ubuntuserver
-  tags = {
-    Name = var.name
+data "aws_iam_policy_document" "assume-execution" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ecs-tasks.amazonaws.com"]
+    }
   }
 }
