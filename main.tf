@@ -24,9 +24,7 @@ provider "aws" {
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
-# DEPLOY INTO THE DEFAULT VPC AND SUBNETS
-# To keep this example simple, we are deploying into the Default VPC and its subnets. In real-world usage, you should
-# deploy into a custom VPC and private subnets.
+# DEPLOY INTO MY VPC AND SUBNETS
 # ---------------------------------------------------------------------------------------------------------------------
 
 #Uses my pre-existing VPC 
@@ -35,116 +33,9 @@ id            = var.vpc_id
 }
 
 data "aws_subnet_ids" "all" {
-  vpc_id = var.vpc_id
+  vpc_id = data.aws_vpc.prod.id
 }
 
-#GATEWAY
-resource "aws_internet_gateway" "gw" {
-  vpc_id = var.vpc_id
-}
-
-#ROUTE TABLE
-resource "aws_route_table" "prod-route-table" {
-  vpc_id = var.vpc_id
-
-  route {
-    cidr_block = "0.0.0.0/0" #DEFAULT ROUTE, SENDS ALL TRAFFIC WHEREEVER THIS ROUTE
-    gateway_id = aws_internet_gateway.gw.id
-  }
-
-  route {
-    ipv6_cidr_block = "::/0"
-    gateway_id      = aws_internet_gateway.gw.id
-  }
-
-  tags = {
-    Name = "prodroute"
-  }
-}
-
-#VPC
-resource "aws_vpc" "prod-vpc" {
-  cidr_block = "10.0.0.0/16"
-
-  tags = {
-   Name = "production"
- }
-}
-
-#SUBNET
-resource "aws_subnet" "subnet-1" {
-  vpc_id            = var.vpc_id
-  cidr_block        = "10.0.1.0/24"
-  availability_zone = "us-east-1a"
-  tags = {
-    Name = "prod-subnet"
-  }
-}
-#Associate subnet with Route table
-resource "aws_route_table_association" "a" {
-  subnet_id      = aws_subnet.subnet-1.id
-  route_table_id = aws_route_table.prod-route-table.id
-}
-
-
-#CREATE A SECURITY GROUP, in this case: allow ports 22, 443 80
-resource "aws_security_group" "allow_web" {
-  name        = "allow_webtraffic"
-  description = "Allow web traffic"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description = "HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] #Can change to only our computer, but Im using 0* to allow all
-  }
-  ingress {
-    description = "HTTP"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-    description = "SSH" #Allows me to SSH the server, I'm using windows so I use Putty to change my main-key pem to ppk, and ssh into it
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  ingress {
-  description = "Pinging" 
-  from_port   = 8
-  to_port     = -1
-  protocol    = "icmp"
-  cidr_blocks = ["0.0.0.0/0"]
-}
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1" # -1 means any protocol
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "allow_web"
-  }
-}
-
-#Network interface -- Creating a network interface with an IP in the subnet that was created earlier
-resource "aws_network_interface" "web-server-ni" {
-  subnet_id       = aws_subnet.subnet-1.id
-  private_ips     = ["10.0.1.50"]
-  security_groups = [aws_security_group.allow_web.id]
-
-  # attachment {
-  #  instance     = aws_instance.test.id
-  #   device_index = 1
-  # }
-}
 # ---------------------------------------------------------------------------------------------------------------------
 # CREATE THE ECS CLUSTER
 # ---------------------------------------------------------------------------------------------------------------------
