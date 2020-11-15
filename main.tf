@@ -55,13 +55,13 @@ resource "aws_vpc" "prod-vpc" {
     Name = "production"
   }
 }
-variable "subnet_prefix" {
-  description = " cidrblock for my subnet"
-}
+#variable "subnet_prefix" {
+#  description = " cidrblock for my subnet"
+#}
 
 #SUBNET
 resource "aws_subnet" "subnet-1" {
-  vpc_id            = aws_vpc.prod-vpc.id
+  vpc_id            = "10.0.1.0/24"
   cidr_block        = var.subnet_prefix[0]
   availability_zone = "us-east-1a"
   tags = {
