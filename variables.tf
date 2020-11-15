@@ -10,3 +10,8 @@ variable "service_name" {
   type        = string
   default     = "esc"
 }
+variable "vpc_id" {
+  description = "vpc-0b1e1b0ebcb08d84b"
+  type = string
+  default = "vpc-0b1e1b0ebcb08d84b"
+}
