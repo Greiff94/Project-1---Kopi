@@ -20,7 +20,7 @@ func TestTerraformAwsEcsExample(t *testing.T) {
 	expectedServiceName := fmt.Sprintf("terratest-aws-ecs-example-service-%s", random.UniqueId())
 
 	// Pick a random AWS region to test in. This helps ensure your code works in all regions.
-	awsRegion := aws.GetRandomStableRegion(t, []string{"us-east-1", "eu-west-1"}, nil)
+	awsRegion := "us-east-1"
 
 	// Construct the terraform options with default retryable errors to handle the most common retryable errors in
 	// terraform testing.
@@ -37,6 +37,8 @@ func TestTerraformAwsEcsExample(t *testing.T) {
 		// Environment variables to set when running Terraform
 		EnvVars: map[string]string{
 			"AWS_DEFAULT_REGION": awsRegion,
+			//"AWS_ACCESS_KEY_ID":
+			//"AWS_SECRET_KEY" :
 		},
 	})
 

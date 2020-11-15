@@ -8,19 +8,19 @@ terraform {
   }
 }
 #Storing my keys in a different file so that I can push to github without worrying about publishing my keys
-variable "a_key" {
+/* variable "a_key" {
   description = "aws access key"
   type        = string
 }
 variable "s_key" {
   description = "aws secret key"
   type        = string
-}
+} */
 # Configure the AWS Provider
 provider "aws" {
-  region     = "us-east-1"
-  access_key = var.a_key
-  secret_key = var.s_key
+  #region     = "us-east-1"
+  #access_key = var.a_key
+  #secret_key = var.s_key
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -41,7 +41,7 @@ data "aws_subnet_ids" "all" {
 # CREATE THE ECS CLUSTER
 # ---------------------------------------------------------------------------------------------------------------------
 
-resource "aws_ecs_cluster" "example" {
+resource "aws_ecs_cluster" "ecs-cluster" {
   name = var.cluster_name
 }
 
@@ -49,10 +49,10 @@ resource "aws_ecs_cluster" "example" {
 # CREATE THE ECS SERVICE AND ITS TASK DEFINITION
 # ---------------------------------------------------------------------------------------------------------------------
 
-resource "aws_ecs_service" "example" {
+resource "aws_ecs_service" "ecs-service" {
   name            = var.service_name
-  cluster         = aws_ecs_cluster.example.arn
-  task_definition = aws_ecs_task_definition.example.arn
+  cluster         = aws_ecs_cluster.ecs-cluster.arn
+  task_definition = aws_ecs_task_definition.ecs-task.arn
   desired_count   = 0
   launch_type     = "FARGATE"
 
@@ -61,7 +61,7 @@ resource "aws_ecs_service" "example" {
   }
 }
 
-resource "aws_ecs_task_definition" "example" {
+resource "aws_ecs_task_definition" "ecs-task" {
   family                   = "terratest"
   network_mode             = "awsvpc"
   cpu                      = 256
