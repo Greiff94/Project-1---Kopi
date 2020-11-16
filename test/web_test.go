@@ -12,14 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// An example of how to test the Terraform module in examples/terraform-aws-ecs-example using Terratest.
-func TestTerraformAwsEcsExample(t *testing.T) {
+func TestTerraformAwsEcs(t *testing.T) {
 	t.Parallel()
 
 	expectedClusterName := fmt.Sprintf("terratest-aws-ecs-example-cluster-%s", random.UniqueId())
 	expectedServiceName := fmt.Sprintf("terratest-aws-ecs-example-service-%s", random.UniqueId())
 
-	// Pick a random AWS region to test in. This helps ensure your code works in all regions.
+	// Define aws region
 	awsRegion := "us-east-1"
 
 	// Construct the terraform options with default retryable errors to handle the most common retryable errors in
